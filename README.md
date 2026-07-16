@@ -49,7 +49,10 @@ if the hardware can't do it, this tool can't make it.
 - `lsscsi`
 - `awk`
 
-On Debian/Ubuntu/TrueNAS SCALE:
+**TrueNAS SCALE** ships all of these out of the box - nothing to install
+(`apt` is locked down there anyway).
+
+On plain Debian/Ubuntu:
 
 ```sh
 sudo apt-get install -y sg3-utils util-linux lsscsi
