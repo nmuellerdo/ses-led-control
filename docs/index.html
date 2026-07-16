@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ses-led-control — SES disk-slot Identify/Fault LED control</title>
+<meta name="description" content="Control the Identify (locate) and Fault LEDs of disk slots in SES enclosures on Linux / TrueNAS SCALE, using sg_ses.">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #0b0f14;
+    --border: #30363d;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --accent: #58a6ff;
+    --term-bg: #05080c;
+    --term-fg: #d7dde3;
+    --ident: #4dd0ff;
+    --fault: #ff6b6b;
+    --off: #5a6875;
+    --code-bg: #0b0f14;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa;
+      --panel: #ffffff;
+      --panel-2: #f0f3f6;
+      --border: #d0d7de;
+      --fg: #1f2328;
+      --muted: #59636e;
+      --accent: #0969da;
+      --term-bg: #0b0f14;   /* keep the terminal dark in both themes */
+      --term-fg: #d7dde3;
+      --ident: #2bb3e0;
+      --fault: #d1242f;
+      --off: #6e7781;
+      --code-bg: #f0f3f6;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+  h1 { font-size: 2rem; margin: 0 0 .35rem; letter-spacing: -.02em; }
+  h1 .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  .tagline { color: var(--muted); margin: 0 0 1rem; font-size: 1.05rem; }
+  h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p { margin: .75rem 0; }
+  ul { margin: .5rem 0; padding-left: 1.25rem; }
+  li { margin: .3rem 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .1em .4em;
+    font-size: .875em;
+  }
+  .links { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+  .btn {
+    display: inline-block;
+    padding: .5rem .9rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--panel);
+    color: var(--fg);
+    font-size: .9rem;
+  }
+  .btn.primary { border-color: var(--accent); color: var(--accent); }
+  .btn:hover { text-decoration: none; border-color: var(--accent); }
+
+  /* Terminal */
+  .term {
+    background: var(--term-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    overflow: hidden;
+    margin: 1.25rem 0;
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .55rem .8rem;
+    background: #11161d;
+    border-bottom: 1px solid var(--border);
+  }
+  .term-bar .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .dot.r { background: #ff5f56; } .dot.y { background: #ffbd2e; } .dot.g { background: #27c93f; }
+  .term-bar .name { color: #7d8794; font: .78rem ui-monospace, Menlo, Consolas, monospace; margin-left: .4rem; }
+  .term pre {
+    margin: 0; padding: 1rem 1.1rem;
+    color: var(--term-fg);
+    font: .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .term .head { color: #8b98a5; }
+  .term .rule { color: #3a444e; }
+  .ident-on { color: var(--ident); font-weight: 600; animation: blink 1.1s steps(1) infinite; }
+  .fault-on { color: var(--fault); font-weight: 600; animation: blink 1.1s steps(1) infinite; }
+  .off { color: var(--off); }
+  @keyframes blink { 50% { opacity: .25; } }
+  .prompt { color: #7ee787; }
+  .cursor {
+    display: inline-block; width: .55em; height: 1.05em;
+    background: var(--term-fg); vertical-align: text-bottom;
+    animation: caret 1s steps(1) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ident-on, .fault-on, .cursor { animation: none; }
+  }
+
+  pre.code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; background: var(--panel); }
+  .card h3 { margin: 0 0 .4rem; font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 2px; vertical-align: baseline; margin-right: .35em; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1><span class="mono">ses-led-control</span></h1>
+    <p class="tagline">Turn the Identify (locate) and Fault LEDs of disk slots on
+    and off, on any Linux box with an SES enclosure — built with TrueNAS SCALE in
+    mind.</p>
+    <div class="links">
+      <a class="btn primary" href="https://github.com/nmuellerdo/ses-led-control">Repository</a>
+      <a class="btn" href="https://github.com/nmuellerdo/ses-led-control/releases">Releases</a>
+      <a class="btn" href="https://github.com/nmuellerdo/ses-led-control/blob/main/README.md">Documentation</a>
+    </div>
+  </header>
+
+  <p>It walks every SES enclosure on the host, maps each disk to its physical
+  slot by SAS address, and shows the slot status together with the IDENT and
+  FAULT LED state — including empty slots. Pick a slot to toggle its locate LED,
+  or drive it from a one-shot command.</p>
+
+  <div class="term" aria-label="Example terminal output">
+    <div class="term-bar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="name">root@nas: ~ — ses-led-control</span>
+    </div>
+<pre><span class="head">#   ENCL:SLOT   STATUS       DEV      SERIAL             MODEL                SIZE     FW       IDENT  FAULT</span>
+<span class="rule">----------------------------------------------------------------------------------------------------------------</span>
+0   sg3:0       populated    sda      WDC-SN-0001        WD40EFRX             3.6T     82.0     <span class="ident-on">ON</span>     <span class="off">off</span>
+1   sg3:7       populated    sdb      ZAB1234            ST8000               7.3T     SN02     <span class="off">off</span>    <span class="fault-on">ON</span>
+2   sg5:2       empty        -        -                  -                    -        -        <span class="off">off</span>    <span class="off">off</span>
+
+number = toggle IDENT | f&lt;n&gt; = toggle FAULT | x = all LEDs off | r = reload | q = quit
+<span class="prompt">&gt;</span> <span class="cursor"></span></pre>
+  </div>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>Enumerates SES enclosures with <code>lsscsi -g</code>.</li>
+    <li>Maps disks to slots by SAS address, via the enclosure
+      <em>Additional Element Status</em> (<code>aes</code>) page and each disk's
+      <code>sas_address</code> in sysfs.</li>
+    <li>Reads slot status and LED state from the <em>Enclosure Status</em>
+      (<code>es</code>) page.</li>
+    <li>Switches LEDs with
+      <code>sg_ses --index=&lt;type&gt;,&lt;idx&gt; --set|--clear=ident|fault</code>.</li>
+    <li>Handles both <code>Array device slot</code> and <code>Device slot</code>
+      element types automatically.</li>
+  </ul>
+  <p>It never writes to disks and does nothing destructive beyond changing an
+  LED. LED control depends entirely on the backplane's SES support — if the
+  hardware can't do it, neither can this.</p>
+
+  <h2>IDENT vs. FAULT</h2>
+  <div class="grid">
+    <div class="card">
+      <h3><span class="swatch" style="background:#4dd0ff"></span>IDENT (locate)</h3>
+      <p>The LED you switch on to physically find a drive — "which bay is
+      <code>sdf</code>?". Usually blue or white, steady or blinking.</p>
+    </div>
+    <div class="card">
+      <h3><span class="swatch" style="background:#ff6b6b"></span>FAULT</h3>
+      <p>Marks a slot as failed. Sometimes driven automatically (e.g. a ZFS
+      failure); you can also set it by hand to flag a disk for replacement.
+      Typically red or amber.</p>
+    </div>
+  </div>
+
+  <h2>Requirements</h2>
+  <ul>
+    <li><strong>root</strong> to switch LEDs (<code>list</code>,
+      <code>--help</code>, <code>--version</code> run unprivileged)</li>
+    <li><code>sg3-utils</code> (<code>sg_ses</code>), <code>util-linux</code>
+      (<code>lsblk</code>), <code>lsscsi</code>, <code>awk</code></li>
+  </ul>
+
+  <h2>Install</h2>
+  <pre class="code"># dependencies (Debian / Ubuntu / TrueNAS SCALE)
+sudo apt-get install -y sg3-utils util-linux lsscsi
+
+# clone and install to /usr/local
+git clone https://github.com/nmuellerdo/ses-led-control.git
+cd ses-led-control
+sudo ./install.sh
+
+# then, as root:
+sudo ses-led-control            # interactive menu
+ses-led-control list            # print the table (no root needed to try)
+sudo ses-led-control ident on sg3:7
+ses-led-control --dry-run fault on /dev/sdf   # preview only, no hardware touched</pre>
+
+  <p>Prefer a single file? Grab
+  <a href="https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control"><code>bin/ses-led-control</code></a>
+  directly and <code>chmod +x</code> it.</p>
+
+  <h2>Targets</h2>
+  <p>Every switching command takes a target, which can be a block device
+  (<code>/dev/sdf</code> or <code>sdf</code>), a disk serial number, or an
+  enclosure slot (<code>sgN:slot</code>, e.g. <code>sg3:7</code>).</p>
+
+  <footer>
+    <p>MIT licensed · © 2026 Niclas Müller ·
+    <a href="https://github.com/nmuellerdo/ses-led-control">github.com/nmuellerdo/ses-led-control</a></p>
+    <p>Developed and tested on TrueNAS SCALE (Supermicro SC846P + LSI SAS3x36),
+    which has no built-in enclosure LED control. Written with the help of Claude
+    (Anthropic).</p>
+  </footer>
+
+</div>
+</body>
+</html>
