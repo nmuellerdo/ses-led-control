@@ -63,10 +63,14 @@ script into any folder and run it with `bash`. This is also the way to use it on
 
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control
-sudo bash ses-led-control          # interactive menu
+sudo bash ses-led-control
 ```
 
-Re-run the same `curl` any time to update to the latest version.
+This starts the interactive menu. Re-run the same `curl` any time to update to
+the latest version.
+
+> Command blocks in this README contain no `#` comments on purpose: the TrueNAS
+> SCALE root shell is zsh, which passes pasted `# …` along as arguments.
 
 ## Usage
 
@@ -93,15 +97,18 @@ Then, at the prompt:
 ### Non-interactive (CLI)
 
 ```sh
-ses-led-control list                     # print the table and exit
-sudo ses-led-control ident on  <target>  # IDENT (locate) LED on
-sudo ses-led-control ident off <target>  # IDENT LED off
-sudo ses-led-control fault on  <target>  # FAULT LED on
-sudo ses-led-control fault off <target>  # FAULT LED off
-sudo ses-led-control off-all             # clear all LEDs
+ses-led-control list
+sudo ses-led-control ident on <target>
+sudo ses-led-control ident off <target>
+sudo ses-led-control fault on <target>
+sudo ses-led-control fault off <target>
+sudo ses-led-control off-all
 ses-led-control --version
 ses-led-control --help
 ```
+
+`list` prints the table and exits (no root needed); `ident`/`fault` switch the
+respective LED; `off-all` clears every IDENT and FAULT LED.
 
 `--dry-run` prints the `sg_ses` commands instead of running them, and works
 without root — handy for scripts and for confirming which slot you're about to

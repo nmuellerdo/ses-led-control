@@ -245,16 +245,20 @@
   <p>One self-contained script — no install, no clone. Download just the script
   into any folder and run it with <code>bash</code>. Works on TrueNAS SCALE,
   where <code>/usr</code> is read-only.</p>
-  <pre class="code"># dependencies (Debian / Ubuntu / TrueNAS SCALE)
-sudo apt-get install -y sg3-utils util-linux lsscsi
+  <pre class="code">sudo apt-get install -y sg3-utils util-linux lsscsi
 
-# grab just the script and run it
 curl -fsSLO https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control
 
-sudo bash ses-led-control                 # interactive menu
-bash ses-led-control list                 # print the table (no root needed to try)
+sudo bash ses-led-control
+bash ses-led-control list
 sudo bash ses-led-control ident on sg3:7
-bash ses-led-control --dry-run fault on /dev/sdf   # preview only, no hardware touched</pre>
+bash ses-led-control --dry-run fault on /dev/sdf</pre>
+  <p>Line by line: install the dependencies (Debian / Ubuntu / TrueNAS SCALE),
+  download just the script, start the interactive menu, print the table (no root
+  needed), switch one IDENT LED, and preview a command with
+  <code>--dry-run</code> without touching hardware. The blocks contain no
+  <code>#</code> comments on purpose — the TrueNAS root shell (zsh) would pass
+  them along as arguments when pasted.</p>
 
   <h2>Targets</h2>
   <p>Every switching command takes a target, which can be a block device
