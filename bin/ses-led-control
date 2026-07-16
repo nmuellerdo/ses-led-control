@@ -1,0 +1,344 @@
+#!/usr/bin/env bash
+#
+# ses-led-control - SES disk-slot overview + Identify/Fault LED control
+#
+# Lists every device slot of every SES enclosure (including empty ones), showing
+# the installed disk (device, serial, model, size, firmware), the slot status and
+# the IDENT (locate) and FAULT LED state. Interactively toggle LEDs from a menu,
+# or drive it non-interactively from the command line / scripts.
+#
+# LEDs are switched through the SCSI Enclosure Services (SES) backplane, so this
+# only works on enclosures whose backplane actually implements SES (most
+# Supermicro / LSI expander backplanes attached to an HBA in IT mode do).
+#
+# Requires: sg3-utils (sg_ses), util-linux (lsblk), lsscsi, awk.
+# Homepage: https://github.com/nmuellerdo/ses-led-control
+# License:  MIT
+# ---------------------------------------------------------------------------
+
+set -euo pipefail
+
+VERSION="0.1.0"
+PROG="${0##*/}"
+
+# Field separator for the internal disk record. ASCII US (0x1f) never appears in
+# disk serials/models, so it is safe against values that contain '|' or spaces.
+readonly SEP=$'\x1f'
+
+DRY_RUN=0
+
+# --- Globals populated by the builders --------------------------------------
+declare -a ENCLOSURES=()
+declare -A DISK_AT=()
+declare -a R_ENC=() R_ET=() R_IDX=() R_ID=() R_FA=() R_ST=()
+
+# --- Small helpers ----------------------------------------------------------
+err() { printf '%s\n' "$*" >&2; }
+die() { err "$*"; exit 1; }
+
+usage() {
+  cat <<EOF
+$PROG $VERSION - control SES disk-slot Identify/Fault LEDs
+
+Usage:
+  $PROG                         Interactive slot table + LED toggle menu
+  $PROG list                    Print the slot table and exit
+  $PROG ident on|off  <target>  Turn the IDENT (locate) LED on/off
+  $PROG fault on|off  <target>  Turn the FAULT LED on/off
+  $PROG off-all                 Clear all IDENT and FAULT LEDs
+  $PROG -h | --help             Show this help
+  $PROG --version               Show version
+
+Global options:
+  --dry-run   Print the sg_ses commands instead of running them.
+              Works without root.
+
+<target> is one of:
+  /dev/sdX or sdX     a block device
+  <serial>            a disk serial number (as shown in the table)
+  sgN:slot            enclosure device + slot index, e.g. sg3:7
+
+Requires: sg3-utils (sg_ses), util-linux (lsblk), lsscsi, awk.
+Switching LEDs needs root; 'list', '--help' and '--version' do not.
+EOF
+}
+
+require_deps() {
+  local bin
+  local -a missing=()
+  for bin in sg_ses lsblk lsscsi awk; do
+    command -v "$bin" >/dev/null 2>&1 || missing+=("$bin")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    die "Missing dependencies: ${missing[*]} (install sg3-utils, util-linux, lsscsi)"
+  fi
+}
+
+need_root() {
+  [[ $DRY_RUN -eq 1 ]] && return 0
+  [[ $EUID -eq 0 ]] && return 0
+  die "This operation switches real hardware LEDs and needs root. Re-run with sudo, or pass --dry-run."
+}
+
+discover_enclosures() {
+  mapfile -t ENCLOSURES < <(lsscsi -g 2>/dev/null | awk '/enclosu/{print $NF}')
+  if [[ ${#ENCLOSURES[@]} -eq 0 ]]; then
+    die "No SES enclosure found (lsscsi -g reports none)."
+  fi
+}
+
+# --- Map slot(enc,idx) -> disk, via the aes page + block devices ------------
+build_diskmap() {
+  DISK_AT=()
+  local -A ENC_OF=() IDX_OF=()
+  local enc addr idx line dev sas a re
+  local name serial model size rev
+
+  for enc in "${ENCLOSURES[@]}"; do
+    while read -r addr idx; do
+      [[ -n $addr && -n $idx ]] || continue
+      ENC_OF[$addr]=$enc
+      IDX_OF[$addr]=$idx
+    done < <(sg_ses -p aes "$enc" 2>/dev/null | awk '
+        /Element index:/ { idx = $3 }
+        {
+          for (f = 1; f <= NF; f++)
+            if ($f ~ /^0x[0-9a-fA-F]+$/) {
+              a = tolower($f); sub(/^0x/, "", a); print a, idx
+            }
+        }')
+  done
+
+  while IFS= read -r line; do
+    name=""; serial=""; model=""; size=""; rev=""
+    re='NAME="([^"]*)"';   [[ $line =~ $re ]] && name=${BASH_REMATCH[1]}
+    re='SERIAL="([^"]*)"'; [[ $line =~ $re ]] && serial=${BASH_REMATCH[1]}
+    re='MODEL="([^"]*)"';  [[ $line =~ $re ]] && model=${BASH_REMATCH[1]}
+    re='SIZE="([^"]*)"';   [[ $line =~ $re ]] && size=${BASH_REMATCH[1]}
+    re='REV="([^"]*)"';    [[ $line =~ $re ]] && rev=${BASH_REMATCH[1]}
+    dev=${name##*/}
+    [[ -n $dev ]] || continue
+    sas=$(cat "/sys/block/$dev/device/sas_address" 2>/dev/null || true)
+    a=${sas#0x}; a=${a,,}
+    [[ -n $a && -n ${ENC_OF[$a]:-} ]] || continue
+    DISK_AT["${ENC_OF[$a]} ${IDX_OF[$a]}"]="${dev}${SEP}${serial:--}${SEP}${model:--}${SEP}${size:--}${SEP}${rev:--}"
+  done < <(lsblk -dpno NAME,SERIAL,MODEL,SIZE,REV -P 2>/dev/null)
+  return 0
+}
+
+# --- Parse slots from the Enclosure Status (es) page ------------------------
+build_slots() {
+  R_ENC=(); R_ET=(); R_IDX=(); R_ID=(); R_FA=(); R_ST=()
+  local enc r_enc r_et r_idx r_id r_fa r_st
+  for enc in "${ENCLOSURES[@]}"; do
+    while read -r r_enc r_et r_idx r_id r_fa r_st; do
+      R_ENC+=("$r_enc"); R_ET+=("$r_et"); R_IDX+=("$r_idx")
+      R_ID+=("$r_id");   R_FA+=("$r_fa");  R_ST+=("$r_st")
+    done < <(sg_ses -p es "$enc" 2>/dev/null | awk -v enc="$enc" '
+        /Element type:/ {
+          if      ($0 ~ /Array device slot/) et = "arr"
+          else if ($0 ~ /Device slot/)       et = "dev"
+          else                               et = ""
+          next
+        }
+        et == "" { next }
+        /Overall descriptor:/           { idx = -1; next }
+        /Element [0-9]+ descriptor:/    { idx = $2; st = "?"; id = 0; fa = 0; next }
+        /status:/ { s = $0; sub(/.*status: */, "", s); gsub(/ /, "_", s); st = s }
+        /Ident=/  { if (match($0, /Ident=[0-9]+/)) id = substr($0, RSTART + 6, RLENGTH - 6) }
+        /Fault reqstd=/ {
+          if (match($0, /Fault reqstd=[0-9]+/)) fa = substr($0, RSTART + 13, RLENGTH - 13)
+          if (idx >= 0) print enc, et, idx, id, fa, st
+        }')
+  done
+  return 0
+}
+
+# --- Set/clear one LED (or print the command in --dry-run) -------------------
+# led_apply <enc> <et> <idx> <field:ident|fault> <op:--set|--clear>
+led_apply() {
+  local enc=$1 et=$2 idx=$3 field=$4 op=$5
+  if [[ $DRY_RUN -eq 1 ]]; then
+    printf 'sg_ses --index=%s,%s %s=%s %s\n' "$et" "$idx" "$op" "$field" "$enc"
+    return 0
+  fi
+  sg_ses --index="$et,$idx" "$op=$field" "$enc" >/dev/null 2>&1
+}
+
+clear_all() {
+  local i
+  for i in "${!R_ENC[@]}"; do
+    led_apply "${R_ENC[$i]}" "${R_ET[$i]}" "${R_IDX[$i]}" ident --clear || true
+    led_apply "${R_ENC[$i]}" "${R_ET[$i]}" "${R_IDX[$i]}" fault --clear || true
+  done
+  [[ $DRY_RUN -eq 1 ]] || echo "All IDENT and FAULT LEDs cleared."
+}
+
+# --- Resolve a <target> to a table row index (prints index, or returns 1) ---
+resolve_target() {
+  local target=$1
+  local i disk dev ser left right
+
+  # enc:slot form, e.g. sg3:7 or /dev/sg3:7
+  if [[ $target == *:* ]]; then
+    left=${target%%:*}; left=${left##*/}
+    right=${target##*:}
+    if [[ $left =~ ^sg[0-9]+$ && $right =~ ^[0-9]+$ ]]; then
+      for i in "${!R_ENC[@]}"; do
+        if [[ ${R_ENC[$i]##*/} == "$left" && ${R_IDX[$i]} == "$right" ]]; then
+          printf '%s\n' "$i"; return 0
+        fi
+      done
+      return 1
+    fi
+  fi
+
+  # device (/dev/sdX or sdX) or serial number
+  local devq=${target##*/}
+  for i in "${!R_ENC[@]}"; do
+    disk=${DISK_AT["${R_ENC[$i]} ${R_IDX[$i]}"]:-}
+    [[ -n $disk ]] || continue
+    IFS=$SEP read -r dev ser _ <<<"$disk"
+    if [[ $dev == "$devq" || $ser == "$target" ]]; then
+      printf '%s\n' "$i"; return 0
+    fi
+  done
+  return 1
+}
+
+# --- Print the slot table ---------------------------------------------------
+print_table() {
+  local divider
+  printf -v divider '%*s' 112 ''
+  printf "\n%-3s %-11s %-12s %-8s %-18s %-20s %-8s %-8s %-6s %-6s\n" \
+    "#" "ENCL:SLOT" "STATUS" "DEV" "SERIAL" "MODEL" "SIZE" "FW" "IDENT" "FAULT"
+  printf '%s\n' "${divider// /-}"
+  local i disk dev ser mod sz fw stat idled fled
+  for i in "${!R_ENC[@]}"; do
+    disk=${DISK_AT["${R_ENC[$i]} ${R_IDX[$i]}"]:-}
+    if [[ -n $disk ]]; then
+      IFS=$SEP read -r dev ser mod sz fw <<<"$disk"
+    else
+      dev="-"; ser="-"; mod="-"; sz="-"; fw="-"
+    fi
+    stat="${R_ST[$i]}"
+    [[ $stat == *[Nn]ot_installed* ]] && stat="empty"
+    [[ $stat == "OK" ]] && stat="populated"
+    [[ ${R_ID[$i]} == "1" ]] && idled="ON" || idled="off"
+    [[ ${R_FA[$i]} == "1" ]] && fled="ON" || fled="off"
+    printf "%-3s %-11s %-12s %-8s %-18s %-20.20s %-8s %-8s %-6s %-6s\n" \
+      "$i" "${R_ENC[$i]##*/}:${R_IDX[$i]}" "$stat" "$dev" "$ser" "$mod" "$sz" "$fw" "$idled" "$fled"
+  done
+  echo
+}
+
+toggle() { # <row> <ident|fault>
+  local i=$1 field=$2 cur op word
+  if [[ $field == ident ]]; then cur=${R_ID[$i]}; else cur=${R_FA[$i]}; fi
+  if [[ $cur == "1" ]]; then op=--clear; word="off"; else op=--set; word="ON"; fi
+  if led_apply "${R_ENC[$i]}" "${R_ET[$i]}" "${R_IDX[$i]}" "$field" "$op"; then
+    printf '>> %s:%s  %s LED %s.\n' "${R_ENC[$i]##*/}" "${R_IDX[$i]}" "$field" "$word"
+  else
+    printf '!! Failed to switch %s on %s:%s.\n' "$field" "${R_ENC[$i]##*/}" "${R_IDX[$i]}"
+  fi
+  return 0
+}
+
+# --- Non-interactive: ident/fault on|off <target> ---------------------------
+cmd_led() { # <ident|fault> <on|off> <target>
+  local field=$1 state=$2 target=$3 op word i
+  case $state in
+    on)  op=--set;   word="on" ;;
+    off) op=--clear; word="off" ;;
+    *)   die "Expected 'on' or 'off', got: '$state'" ;;
+  esac
+  require_deps
+  need_root
+  discover_enclosures
+  build_diskmap
+  build_slots
+  if ! i=$(resolve_target "$target"); then
+    die "Target not found: '$target' (try '$PROG list' to see valid targets)"
+  fi
+  if led_apply "${R_ENC[$i]}" "${R_ET[$i]}" "${R_IDX[$i]}" "$field" "$op"; then
+    printf '%s:%s  %s LED %s.\n' "${R_ENC[$i]##*/}" "${R_IDX[$i]}" "$field" "$word"
+  else
+    die "Failed to switch $field on ${R_ENC[$i]##*/}:${R_IDX[$i]}"
+  fi
+}
+
+# --- Interactive menu -------------------------------------------------------
+interactive() {
+  require_deps
+  need_root
+  discover_enclosures
+  build_diskmap
+  local sel n
+  while true; do
+    build_slots
+    print_table
+    echo "number = toggle IDENT | f<n> = toggle FAULT | x = all LEDs off | r = reload | q = quit"
+    if ! read -rp "> " sel; then echo; break; fi
+    case $sel in
+      q | Q) echo "Bye."; break ;;
+      r | R) : ;;
+      x | X) clear_all ;;
+      f[0-9]*)
+        n=${sel#f}
+        if [[ -n ${R_ENC[$n]:-} ]]; then toggle "$n" fault; else echo "No row $n."; fi ;;
+      [0-9]*)
+        if [[ -n ${R_ENC[$sel]:-} ]]; then toggle "$sel" ident; else echo "No row $sel."; fi ;;
+      "") : ;;
+      *) echo "Invalid input." ;;
+    esac
+  done
+}
+
+# --- Argument handling ------------------------------------------------------
+main() {
+  local a
+  local -a rest=()
+  for a in "$@"; do
+    case $a in
+      --dry-run)  DRY_RUN=1 ;;
+      -h | --help) usage; exit 0 ;;
+      --version)  printf '%s %s\n' "$PROG" "$VERSION"; exit 0 ;;
+      *)          rest+=("$a") ;;
+    esac
+  done
+  if [[ ${#rest[@]} -gt 0 ]]; then set -- "${rest[@]}"; else set --; fi
+
+  local cmd=${1:-}
+  case $cmd in
+    "" | menu)
+      interactive ;;
+    list)
+      require_deps
+      discover_enclosures
+      build_diskmap
+      build_slots
+      print_table
+      if [[ ${#R_ENC[@]} -eq 0 && $EUID -ne 0 ]]; then
+        err "Note: no slots read. Reading enclosure status usually needs root."
+      fi ;;
+    ident | fault)
+      [[ $# -ge 3 ]] || die "Usage: $PROG $cmd on|off <target>"
+      cmd_led "$cmd" "$2" "$3" ;;
+    off-all)
+      require_deps
+      need_root
+      discover_enclosures
+      build_slots
+      clear_all ;;
+    *)
+      err "Unknown command: '$cmd'"
+      err "Run '$PROG --help' for usage."
+      exit 2 ;;
+  esac
+}
+
+# Run main() only when executed directly, so the functions above can be
+# sourced (e.g. by tests) without side effects.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
