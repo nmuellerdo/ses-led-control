@@ -1,0 +1,133 @@
+.TH SES-LED-CONTROL 1 "2026-07-16" "ses-led-control 0.1.0" "User Commands"
+.SH NAME
+ses-led-control \- SES disk-slot overview and Identify/Fault LED control
+.SH SYNOPSIS
+.B ses-led-control
+.RB [ --dry-run ]
+.RI [ command ]
+.RI [ arguments ]
+.SH DESCRIPTION
+.B ses-led-control
+lists every device slot of every SCSI Enclosure Services (SES) enclosure on the
+host, including empty slots. For each slot it shows the installed disk (device
+node, serial, model, size, firmware), the slot status, and the state of the
+IDENT (locate) and FAULT LEDs. LEDs can be toggled from an interactive menu or
+switched non-interactively from the command line.
+.PP
+Disks are mapped to slots by SAS address using the enclosure's Additional
+Element Status
+.RB ( aes )
+page; slot status and LED state are read from the Enclosure Status
+.RB ( es )
+page. LEDs are switched with
+.BR sg_ses (8)
+via
+.BR "--index=<type>,<idx> --set|--clear=ident|fault" .
+.PP
+This only works on backplanes that actually implement SES (most Supermicro and
+LSI expander backplanes attached to an HBA in IT mode do). Both the
+.B Array device slot
+and
+.B Device slot
+element types are handled automatically.
+.SH COMMANDS
+.TP
+.B (no command)
+Start the interactive slot table and LED toggle menu. In the menu, enter a row
+number to toggle its IDENT LED,
+.BI f n
+to toggle its FAULT LED,
+.B x
+to clear all LEDs,
+.B r
+to reload, and
+.B q
+to quit.
+.TP
+.B list
+Print the slot table and exit.
+.TP
+.BI "ident on|off " target
+Turn the IDENT (locate) LED of
+.I target
+on or off.
+.TP
+.BI "fault on|off " target
+Turn the FAULT LED of
+.I target
+on or off.
+.TP
+.B off-all
+Clear all IDENT and FAULT LEDs on every enclosure.
+.SH OPTIONS
+.TP
+.B --dry-run
+Print the
+.BR sg_ses (8)
+commands that would be run, without executing them. Works without root.
+.TP
+.BR -h ", " --help
+Show usage and exit.
+.TP
+.B --version
+Show the version and exit.
+.SH TARGETS
+.I target
+is one of:
+.TP
+.BR /dev/sd X " or " sd X
+a block device
+.TP
+.I serial
+a disk serial number, as shown in the table
+.TP
+.BI sg N : slot
+an enclosure device and slot index, e.g.
+.BR sg3:7 .
+.SH REQUIREMENTS
+.BR sg_ses (8)
+from sg3-utils,
+.BR lsblk (8)
+from util-linux,
+.BR lsscsi (8)
+and
+.BR awk (1).
+Switching LEDs requires root;
+.BR list ", " --help " and " --version
+do not.
+.SH EXAMPLES
+.TP
+List all slots:
+.B ses-led-control list
+.TP
+Locate the disk with serial Z1234ABC:
+.B sudo ses-led-control ident on Z1234ABC
+.TP
+Mark /dev/sdf as faulty:
+.B sudo ses-led-control fault on /dev/sdf
+.TP
+Preview the command without touching hardware:
+.B ses-led-control --dry-run fault on sg3:7
+.TP
+Clear every LED:
+.B sudo ses-led-control off-all
+.SH EXIT STATUS
+.TP
+.B 0
+success
+.TP
+.B 1
+runtime error (missing dependency, no enclosure, not root, target not found)
+.TP
+.B 2
+unknown command
+.SH SECURITY
+This tool switches LEDs on real hardware and must run as root to do so. It never
+writes to disks and performs no destructive action beyond changing LED state.
+.SH SEE ALSO
+.BR sg_ses (8),
+.BR lsblk (8),
+.BR lsscsi (8),
+.BR awk (1)
+.SH AUTHOR
+Niclas Müller
