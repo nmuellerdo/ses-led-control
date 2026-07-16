@@ -1,19 +1,19 @@
 # ses-led-control
 
 Control the **Identify (locate)** and **Fault** LEDs of disk slots in enclosures
-that speak **SES** (SCSI Enclosure Services) — e.g. Supermicro / LSI expander
+that speak **SES** (SCSI Enclosure Services) - e.g. Supermicro / LSI expander
 backplanes attached to an HBA in IT mode. Built for Linux in general, with
 TrueNAS SCALE as the primary use case.
 
 TrueNAS SCALE ships `sg_ses` but has **no built-in way** to drive enclosure
-locate/fault LEDs — this fills that gap with the tooling already on the system.
+locate/fault LEDs - this fills that gap with the tooling already on the system.
 
 [![shellcheck](https://github.com/nmuellerdo/ses-led-control/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/nmuellerdo/ses-led-control/actions/workflows/shellcheck.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
 
 It lists **every** slot of every SES enclosure (including empty ones), maps the
 installed disk to its slot via the SAS address, shows the slot status and the
-IDENT/FAULT LED state, and lets you toggle those LEDs — interactively or from a
+IDENT/FAULT LED state, and lets you toggle those LEDs - interactively or from a
 one-shot command.
 
 ```text
@@ -38,14 +38,14 @@ number = toggle IDENT | f<n> = toggle FAULT | x = all LEDs off | r = reload | q 
   automatically.
 
 It does **not** write to disks and performs no destructive action beyond
-changing an LED. LED control depends entirely on the backplane's SES support —
+changing an LED. LED control depends entirely on the backplane's SES support -
 if the hardware can't do it, this tool can't make it.
 
 ## Requirements
 
 - **root** to switch LEDs (`list`, `--help`, `--version` run unprivileged).
-- [`sg3-utils`](https://sg.danny.cz/sg/sg3_utils.html) — provides `sg_ses`
-- `util-linux` — provides `lsblk`
+- [`sg3-utils`](https://sg.danny.cz/sg/sg3_utils.html) - provides `sg_ses`
+- `util-linux` - provides `lsblk`
 - `lsscsi`
 - `awk`
 
@@ -57,7 +57,7 @@ sudo apt-get install -y sg3-utils util-linux lsscsi
 
 ## Run
 
-It's a single self-contained script — no install, no clone. Download just the
+It's a single self-contained script - no install, no clone. Download just the
 script into any folder and run it with `bash`. This is also the way to use it on
 **TrueNAS SCALE**, where `/usr` (and `/usr/local/bin`) is mounted read-only:
 
@@ -70,12 +70,12 @@ This starts the interactive menu. Re-run the same `curl` any time to update to
 the latest version.
 
 > Command blocks in this README contain no `#` comments on purpose: the TrueNAS
-> SCALE root shell is zsh, which passes pasted `# …` along as arguments.
+> SCALE root shell is zsh, which passes pasted `# ...` along as arguments.
 
 ## Usage
 
 > Examples below call `ses-led-control` for brevity. If you downloaded the
-> script, run it with `bash ses-led-control …` from that folder (prefix `sudo`
+> script, run it with `bash ses-led-control ...` from that folder (prefix `sudo`
 > to switch LEDs).
 
 ### Interactive
@@ -111,7 +111,7 @@ ses-led-control --help
 respective LED; `off-all` clears every IDENT and FAULT LED.
 
 `--dry-run` prints the `sg_ses` commands instead of running them, and works
-without root — handy for scripts and for confirming which slot you're about to
+without root - handy for scripts and for confirming which slot you're about to
 light up:
 
 ```sh
@@ -130,7 +130,7 @@ sg_ses --index=arr,7 --set=fault /dev/sg3
 | `<serial>` | `ZAB1234`  | a disk serial (as shown in the table) |
 | `sgN:slot` | `sg3:7`    | enclosure device + slot index         |
 
-Example — locate a disk by serial, then mark another as faulty:
+Example - locate a disk by serial, then mark another as faulty:
 
 ```sh
 sudo ses-led-control ident on ZAB1234
@@ -140,13 +140,13 @@ sudo ses-led-control fault on /dev/sdf
 ## IDENT vs. FAULT
 
 - **IDENT** (a.k.a. *locate* / *identify*) is the LED you turn on yourself to
-  physically find a drive — "which bay is `sdf`?". It usually shows as blue or a
+  physically find a drive - "which bay is `sdf`?". It usually shows as blue or a
   steady/blinking white LED, depending on the backplane.
 - **FAULT** marks a slot as failed. Some setups drive it automatically (e.g. a
   ZFS failure); you can also set it by hand to flag a disk for replacement. It is
   typically red/amber.
 
-Both are just SES element bits — this tool sets or clears them. What color/blink
+Both are just SES element bits - this tool sets or clears them. What color/blink
 pattern the backplane shows is up to the hardware.
 
 ## Safety
@@ -208,7 +208,7 @@ sudo sg_ses -p es /dev/sgN
 
 and adjust the matching patterns in `build_slots` (the `/Ident=/`,
 `/Fault reqstd=/` and `status:` rules) to match your output. If you hit this,
-please open an issue and paste the output of `sg_ses -p es /dev/sgN` — that's
+please open an issue and paste the output of `sg_ses -p es /dev/sgN` - that's
 exactly what's needed to widen the parser.
 
 ## Development
@@ -226,7 +226,7 @@ in CI on every push.
 
 ## Uninstall
 
-Nothing is installed system-wide — just delete the script:
+Nothing is installed system-wide - just delete the script:
 
 ```sh
 rm -f ses-led-control

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SCALE mounts `/usr` read-only, so a system-wide install could not write there.
 
 ### Removed
-- `install.sh` — there is no separate install step anymore.
+- `install.sh` - there is no separate install step anymore.
 
 ## [0.1.0] - 2026-07-16
 
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release.
 - Slot overview across all SES enclosures, listing the installed disk
   (device, serial, model, size, firmware), the slot status, and the IDENT and
-  FAULT LED state — including empty slots.
+  FAULT LED state - including empty slots.
 - Interactive menu: `<n>` toggles IDENT, `f<n>` toggles FAULT, `x` clears all
   LEDs, `r` reloads, `q` quits.
 - Non-interactive CLI: `list`, `ident on|off <target>`, `fault on|off <target>`,

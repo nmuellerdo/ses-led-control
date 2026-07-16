@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ses-led-control — SES disk-slot Identify/Fault LED control</title>
+<title>ses-led-control - SES disk-slot Identify/Fault LED control</title>
 <meta name="description" content="Control the Identify (locate) and Fault LEDs of disk slots in SES enclosures on Linux / TrueNAS SCALE, using sg_ses.">
 <style>
   :root {
@@ -169,7 +169,7 @@
   <header>
     <h1><span class="mono">ses-led-control</span></h1>
     <p class="tagline">Turn the Identify (locate) and Fault LEDs of disk slots on
-    and off, on any Linux box with an SES enclosure — built with TrueNAS SCALE in
+    and off, on any Linux box with an SES enclosure - built with TrueNAS SCALE in
     mind.</p>
     <div class="links">
       <a class="btn primary" href="https://github.com/nmuellerdo/ses-led-control">Repository</a>
@@ -180,13 +180,13 @@
 
   <p>It walks every SES enclosure on the host, maps each disk to its physical
   slot by SAS address, and shows the slot status together with the IDENT and
-  FAULT LED state — including empty slots. Pick a slot to toggle its locate LED,
+  FAULT LED state - including empty slots. Pick a slot to toggle its locate LED,
   or drive it from a one-shot command.</p>
 
   <div class="term" aria-label="Interactive ses-led-control demo">
     <div class="term-bar">
       <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="name">root@nas: ~ — ses-led-control  (interactive demo)</span>
+      <span class="name">root@nas: ~ - ses-led-control  (interactive demo)</span>
     </div>
     <pre id="demo-screen"></pre>
     <div id="demo-msg" aria-live="polite"></div>
@@ -194,10 +194,10 @@
       <span class="prompt">&gt;</span>
       <input id="demo-input" type="text" autocomplete="off" autocapitalize="off"
              spellcheck="false" aria-label="demo command"
-             placeholder="type a row number, f<n>, x, r or q — or click a LED cell">
+             placeholder="type a row number, f<n>, x, r or q - or click a LED cell">
     </div>
   </div>
-  <p class="demo-note">Browser simulation — no hardware is touched. Try
+  <p class="demo-note">Browser simulation - no hardware is touched. Try
   <code>0</code>, <code>f1</code>, <code>x</code>, <code>r</code>, or click an
   <span class="ident-on">ON</span>/<span class="off">off</span> cell.</p>
 
@@ -215,14 +215,14 @@
       element types automatically.</li>
   </ul>
   <p>It never writes to disks and does nothing destructive beyond changing an
-  LED. LED control depends entirely on the backplane's SES support — if the
+  LED. LED control depends entirely on the backplane's SES support - if the
   hardware can't do it, neither can this.</p>
 
   <h2>IDENT vs. FAULT</h2>
   <div class="grid">
     <div class="card">
       <h3><span class="swatch" style="background:#4dd0ff"></span>IDENT (locate)</h3>
-      <p>The LED you switch on to physically find a drive — "which bay is
+      <p>The LED you switch on to physically find a drive - "which bay is
       <code>sdf</code>?". Usually blue or white, steady or blinking.</p>
     </div>
     <div class="card">
@@ -242,7 +242,7 @@
   </ul>
 
   <h2>Run</h2>
-  <p>One self-contained script — no install, no clone. Download just the script
+  <p>One self-contained script - no install, no clone. Download just the script
   into any folder and run it with <code>bash</code>. Works on TrueNAS SCALE,
   where <code>/usr</code> is read-only.</p>
   <pre class="code">sudo apt-get install -y sg3-utils util-linux lsscsi
@@ -257,7 +257,7 @@ bash ses-led-control --dry-run fault on /dev/sdf</pre>
   download just the script, start the interactive menu, print the table (no root
   needed), switch one IDENT LED, and preview a command with
   <code>--dry-run</code> without touching hardware. The blocks contain no
-  <code>#</code> comments on purpose — the TrueNAS root shell (zsh) would pass
+  <code>#</code> comments on purpose - the TrueNAS root shell (zsh) would pass
   them along as arguments when pasted.</p>
 
   <h2>Targets</h2>
@@ -319,7 +319,7 @@ bash ses-led-control --dry-run fault on /dev/sdf</pre>
   function run(raw){
     var sel = raw.trim();
     if (sel === "") return;
-    if (/^[qQ]$/.test(sel)) { say("Bye.  (demo — type r to reload)"); return; }
+    if (/^[qQ]$/.test(sel)) { say("Bye.  (demo - type r to reload)"); return; }
     if (/^[rR]$/.test(sel)) { render(); say("Reloaded."); return; }
     if (/^[xX]$/.test(sel)) {
       for (var i = 0; i < slots.length; i++){ slots[i].ident = false; slots[i].fault = false; }
