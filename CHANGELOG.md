@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-16
+
+### Fixed
+- Interactive menu: the row selection is now validated as a plain decimal before
+  it is used as an array index. The index was evaluated in an arithmetic context,
+  which meant input like `0,R_ENC[$(cmd)]` could run `cmd` as root; malformed
+  input such as `08` or `1x` crashed the whole menu; and a leading zero was read
+  as octal (`010` toggled slot 8, not row 10). All three are fixed.
+- `ident`, `fault` and `off-all` now fail with a clear message when no enclosure
+  slots can be read (previously `--dry-run` without root gave a misleading
+  "Target not found" or silently did nothing).
+- `discover_enclosures` ignores `lsscsi` lines without a real `/dev/sg*` node and
+  hints at the sg kernel module instead of a generic error.
+
+### Removed
+- The undocumented `menu` command alias, so the interface matches the docs.
+
 ## [0.1.1] - 2026-07-16
 
 ### Changed
@@ -37,7 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic handling of both `Array device slot` and `Device slot` element types.
 - Offline parity self-test (`tests/dry-run-parity.sh`) and a shellcheck CI
   workflow.
+- Man page (`man/ses-led-control.1`) and a `/usr/local` installer (`install.sh`,
+  removed again in 0.1.1).
 
-[Unreleased]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nmuellerdo/ses-led-control/releases/tag/v0.1.0

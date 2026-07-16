@@ -57,6 +57,17 @@ check "dry-run fault clear" \
   "$(led_apply "${R_ENC[2]}" "${R_ET[2]}" "${R_IDX[2]}" fault --clear)" \
   "sg_ses --index=dev,2 --clear=fault /dev/sg5"
 
+# --- menu row validation (guards the interactive array subscript) -----------
+check "menu_row plain"    "$(menu_row 1)" "1"
+check "menu_row zero"     "$(menu_row 0)" "0"
+check "menu_row base10"   "$(menu_row 02)" "2"
+if menu_row 1x >/dev/null 2>&1;  then echo "FAIL menu_row accepted '1x'"; fail=1; else echo "ok   menu_row rejects '1x'"; fi
+if menu_row 9 >/dev/null 2>&1;   then echo "FAIL menu_row accepted out-of-range"; fail=1; else echo "ok   menu_row rejects out-of-range"; fi
+rm -f INJECTED
+# shellcheck disable=SC2016  # single quotes are intentional: pass the literal payload, unexpanded
+if menu_row '0,R_ENC[$(touch INJECTED)]' >/dev/null 2>&1; then echo "FAIL menu_row accepted injection"; fail=1; fi
+if [[ -e INJECTED ]]; then echo "FAIL menu_row executed injected command"; fail=1; rm -f INJECTED; else echo "ok   menu_row: injection rejected, no code executed"; fi
+
 if [[ $fail -eq 0 ]]; then
   echo "PASS: all parity checks green"
 else

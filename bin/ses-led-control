@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-VERSION="0.1.1"
+VERSION="0.1.2"
 PROG="${0##*/}"
 
 # Field separator for the internal disk record. ASCII US (0x1f) never appears in
@@ -50,8 +50,9 @@ Usage:
   $PROG --version               Show version
 
 Global options:
-  --dry-run   Print the sg_ses commands instead of running them.
-              Works without root.
+  --dry-run   Print the sg_ses commands instead of running them; no LED is
+              switched. Reading the enclosure state to resolve a target still
+              needs root.
 
 <target> is one of:
   /dev/sdX or sdX     a block device
@@ -80,10 +81,19 @@ need_root() {
   die "This operation switches real hardware LEDs and needs root. Re-run with sudo, or pass --dry-run."
 }
 
+# Abort with a clear message when no enclosure slots were read.
+require_slots() {
+  [[ ${#R_ENC[@]} -gt 0 ]] && return 0
+  if [[ $EUID -eq 0 ]]; then
+    die "No enclosure slots could be read from: ${ENCLOSURES[*]:-none}"
+  fi
+  die "No enclosure slots could be read. Reading the enclosure state needs root, even with --dry-run; re-run with sudo."
+}
+
 discover_enclosures() {
-  mapfile -t ENCLOSURES < <(lsscsi -g 2>/dev/null | awk '/enclosu/{print $NF}')
+  mapfile -t ENCLOSURES < <(lsscsi -g 2>/dev/null | awk '/enclosu/ && $NF ~ /^\/dev\//{print $NF}')
   if [[ ${#ENCLOSURES[@]} -eq 0 ]]; then
-    die "No SES enclosure found (lsscsi -g reports none)."
+    die "No usable SES enclosure found. Check 'lsscsi -g'; if an enclosure is listed but its sg node shows '-', the sg kernel module may not be loaded (try: modprobe sg)."
   fi
 }
 
@@ -257,6 +267,7 @@ cmd_led() { # <ident|fault> <on|off> <target>
   discover_enclosures
   build_diskmap
   build_slots
+  require_slots
   if ! i=$(resolve_target "$target"); then
     die "Target not found: '$target' (try '$PROG list' to see valid targets)"
   fi
@@ -265,6 +276,18 @@ cmd_led() { # <ident|fault> <on|off> <target>
   else
     die "Failed to switch $field on ${R_ENC[$i]##*/}:${R_IDX[$i]}"
   fi
+}
+
+# Validate a menu row selection and echo its decimal index, or return 1.
+# The array subscript in the menu is an arithmetic context, so raw input there
+# would allow octal mis-parsing (010 -> row 8) and command substitution
+# (e.g. "0,R_ENC[$(cmd)]"). Accept digits only, and force base 10.
+menu_row() {
+  local in=$1 i
+  [[ $in =~ ^[0-9]+$ ]] || return 1
+  i=$((10#$in))
+  [[ -n ${R_ENC[$i]:-} ]] || return 1
+  printf '%s\n' "$i"
 }
 
 # --- Interactive menu -------------------------------------------------------
@@ -284,10 +307,9 @@ interactive() {
       r | R) : ;;
       x | X) clear_all ;;
       f[0-9]*)
-        n=${sel#f}
-        if [[ -n ${R_ENC[$n]:-} ]]; then toggle "$n" fault; else echo "No row $n."; fi ;;
+        if n=$(menu_row "${sel#f}"); then toggle "$n" fault; else echo "No row ${sel#f}."; fi ;;
       [0-9]*)
-        if [[ -n ${R_ENC[$sel]:-} ]]; then toggle "$sel" ident; else echo "No row $sel."; fi ;;
+        if n=$(menu_row "$sel"); then toggle "$n" ident; else echo "No row $sel."; fi ;;
       "") : ;;
       *) echo "Invalid input." ;;
     esac
@@ -310,7 +332,7 @@ main() {
 
   local cmd=${1:-}
   case $cmd in
-    "" | menu)
+    "")
       interactive ;;
     list)
       require_deps
@@ -329,6 +351,7 @@ main() {
       need_root
       discover_enclosures
       build_slots
+      require_slots
       clear_all ;;
     *)
       err "Unknown command: '$cmd'"

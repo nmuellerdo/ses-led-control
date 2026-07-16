@@ -1,4 +1,4 @@
-.TH SES-LED-CONTROL 1 "2026-07-16" "ses-led-control 0.1.1" "User Commands"
+.TH SES-LED-CONTROL 1 "2026-07-16" "ses-led-control 0.1.2" "User Commands"
 .SH NAME
 ses-led-control \- SES disk-slot overview and Identify/Fault LED control
 .SH SYNOPSIS
@@ -64,7 +64,8 @@ Clear all IDENT and FAULT LEDs on every enclosure.
 .B --dry-run
 Print the
 .BR sg_ses (8)
-commands that would be run, without executing them. Works without root.
+commands that would be run, without executing them. No LED is switched, but
+reading the enclosure state to resolve a target still needs root.
 .TP
 .BR -h ", " --help
 Show usage and exit.
