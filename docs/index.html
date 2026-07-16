@@ -135,6 +135,32 @@
   .card p { margin: 0; color: var(--muted); font-size: .92rem; }
   .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 2px; vertical-align: baseline; margin-right: .35em; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+
+  /* Interactive demo */
+  #demo-screen {
+    margin: 0; padding: 1rem 1.1rem .4rem;
+    color: var(--term-fg);
+    font: .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-x: auto; white-space: pre;
+  }
+  #demo-msg {
+    min-height: 1.25rem; padding: 0 1.1rem .2rem;
+    color: #7ee787;
+    font: .82rem/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre;
+  }
+  #demo-msg.err { color: var(--fault); }
+  .prompt-row {
+    display: flex; align-items: center; gap: .5ch;
+    padding: .2rem 1.1rem 1rem;
+    font: .82rem/1.5 ui-monospace, Menlo, Consolas, monospace;
+  }
+  #demo-input {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: var(--term-fg); font: inherit; caret-color: var(--term-fg);
+  }
+  #demo-input::placeholder { color: #4a5560; }
+  .cell.ident-on, .cell.fault-on, .cell.off { cursor: pointer; }
+  .demo-note { color: var(--muted); font-size: .85rem; margin: .5rem 0 0; }
 </style>
 </head>
 <body>
@@ -157,20 +183,23 @@
   FAULT LED state — including empty slots. Pick a slot to toggle its locate LED,
   or drive it from a one-shot command.</p>
 
-  <div class="term" aria-label="Example terminal output">
+  <div class="term" aria-label="Interactive ses-led-control demo">
     <div class="term-bar">
       <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="name">root@nas: ~ — ses-led-control</span>
+      <span class="name">root@nas: ~ — ses-led-control  (interactive demo)</span>
     </div>
-<pre><span class="head">#   ENCL:SLOT   STATUS       DEV      SERIAL             MODEL                SIZE     FW       IDENT  FAULT</span>
-<span class="rule">----------------------------------------------------------------------------------------------------------------</span>
-0   sg3:0       populated    sda      WDC-SN-0001        WD40EFRX             3.6T     82.0     <span class="ident-on">ON</span>     <span class="off">off</span>
-1   sg3:7       populated    sdb      ZAB1234            ST8000               7.3T     SN02     <span class="off">off</span>    <span class="fault-on">ON</span>
-2   sg5:2       empty        -        -                  -                    -        -        <span class="off">off</span>    <span class="off">off</span>
-
-number = toggle IDENT | f&lt;n&gt; = toggle FAULT | x = all LEDs off | r = reload | q = quit
-<span class="prompt">&gt;</span> <span class="cursor"></span></pre>
+    <pre id="demo-screen"></pre>
+    <div id="demo-msg" aria-live="polite"></div>
+    <div class="prompt-row">
+      <span class="prompt">&gt;</span>
+      <input id="demo-input" type="text" autocomplete="off" autocapitalize="off"
+             spellcheck="false" aria-label="demo command"
+             placeholder="type a row number, f<n>, x, r or q — or click a LED cell">
+    </div>
   </div>
+  <p class="demo-note">Browser simulation — no hardware is touched. Try
+  <code>0</code>, <code>f1</code>, <code>x</code>, <code>r</code>, or click an
+  <span class="ident-on">ON</span>/<span class="off">off</span> cell.</p>
 
   <h2>What it does</h2>
   <ul>
@@ -212,24 +241,20 @@ number = toggle IDENT | f&lt;n&gt; = toggle FAULT | x = all LEDs off | r = reloa
       (<code>lsblk</code>), <code>lsscsi</code>, <code>awk</code></li>
   </ul>
 
-  <h2>Install</h2>
+  <h2>Run</h2>
+  <p>One self-contained script — no install, no clone. Download just the script
+  into any folder and run it with <code>bash</code>. Works on TrueNAS SCALE,
+  where <code>/usr</code> is read-only.</p>
   <pre class="code"># dependencies (Debian / Ubuntu / TrueNAS SCALE)
 sudo apt-get install -y sg3-utils util-linux lsscsi
 
-# clone and install to /usr/local
-git clone https://github.com/nmuellerdo/ses-led-control.git
-cd ses-led-control
-sudo ./install.sh
+# grab just the script and run it
+curl -fsSLO https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control
 
-# then, as root:
-sudo ses-led-control            # interactive menu
-ses-led-control list            # print the table (no root needed to try)
-sudo ses-led-control ident on sg3:7
-ses-led-control --dry-run fault on /dev/sdf   # preview only, no hardware touched</pre>
-
-  <p>Prefer a single file? Grab
-  <a href="https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control"><code>bin/ses-led-control</code></a>
-  directly and <code>chmod +x</code> it.</p>
+sudo bash ses-led-control                 # interactive menu
+bash ses-led-control list                 # print the table (no root needed to try)
+sudo bash ses-led-control ident on sg3:7
+bash ses-led-control --dry-run fault on /dev/sdf   # preview only, no hardware touched</pre>
 
   <h2>Targets</h2>
   <p>Every switching command takes a target, which can be a block device
@@ -245,5 +270,73 @@ ses-led-control --dry-run fault on /dev/sdf   # preview only, no hardware touche
   </footer>
 
 </div>
+<script>
+(function () {
+  var slots = [
+    {enc:"sg3", slot:0, status:"populated", dev:"sda", serial:"WDC-SN-0001", model:"WD40EFRX", size:"3.6T", fw:"82.0", ident:true,  fault:false},
+    {enc:"sg3", slot:7, status:"populated", dev:"sdb", serial:"ZAB1234",     model:"ST8000",   size:"7.3T", fw:"SN02", ident:false, fault:true },
+    {enc:"sg5", slot:2, status:"empty",     dev:"-",   serial:"-",           model:"-",        size:"-",    fw:"-",    ident:false, fault:false}
+  ];
+  var screenEl = document.getElementById("demo-screen");
+  var msgEl    = document.getElementById("demo-msg");
+  var inputEl  = document.getElementById("demo-input");
+  if (!screenEl || !inputEl || !msgEl) return;
+
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function pad(s, n){ s = String(s); if (s.length > n) s = s.slice(0, n); while (s.length < n) s += " "; return s; }
+  function ledSpan(row, kind){
+    var on  = kind === "ident" ? slots[row].ident : slots[row].fault;
+    var txt = pad(on ? "ON" : "off", 6);
+    var cls = "cell " + kind + " " + (on ? (kind + "-on") : "off");
+    return '<span class="' + cls + '" data-row="' + row + '" data-kind="' + kind + '">' + txt + '</span>';
+  }
+  function render(){
+    var head = "#   ENCL:SLOT   STATUS       DEV      SERIAL             MODEL                SIZE     FW       IDENT  FAULT";
+    var rule = new Array(113).join("-");
+    var lines = ['<span class="head">' + esc(head) + '</span>', '<span class="rule">' + rule + '</span>'];
+    for (var i = 0; i < slots.length; i++){
+      var s = slots[i];
+      var left = pad(i,3)+" "+pad(s.enc+":"+s.slot,11)+" "+pad(s.status,12)+" "+pad(s.dev,8)+" "+
+                 pad(s.serial,18)+" "+pad(s.model,20)+" "+pad(s.size,8)+" "+pad(s.fw,8)+" ";
+      lines.push(esc(left) + ledSpan(i,"ident") + " " + ledSpan(i,"fault"));
+    }
+    lines.push("");
+    lines.push(esc("number = toggle IDENT | f<n> = toggle FAULT | x = all LEDs off | r = reload | q = quit"));
+    screenEl.innerHTML = lines.join("\n");
+  }
+  function say(text, isErr){ msgEl.textContent = text; msgEl.className = isErr ? "err" : ""; }
+  function toggle(row, kind){
+    var s = slots[row];
+    var now = !(kind === "ident" ? s.ident : s.fault);
+    if (kind === "ident") s.ident = now; else s.fault = now;
+    render();
+    say(">> " + s.enc + ":" + s.slot + "  " + kind + " LED " + (now ? "ON" : "off") + ".");
+  }
+  function run(raw){
+    var sel = raw.trim();
+    if (sel === "") return;
+    if (/^[qQ]$/.test(sel)) { say("Bye.  (demo — type r to reload)"); return; }
+    if (/^[rR]$/.test(sel)) { render(); say("Reloaded."); return; }
+    if (/^[xX]$/.test(sel)) {
+      for (var i = 0; i < slots.length; i++){ slots[i].ident = false; slots[i].fault = false; }
+      render(); say("All IDENT and FAULT LEDs cleared."); return;
+    }
+    var m = /^f(\d+)$/.exec(sel);
+    if (m) { var n = +m[1]; if (n < slots.length) toggle(n, "fault"); else say("No row " + n + ".", true); return; }
+    if (/^\d+$/.test(sel)) { var k = +sel; if (k < slots.length) toggle(k, "ident"); else say("No row " + sel + ".", true); return; }
+    say("Invalid input.", true);
+  }
+  inputEl.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ run(inputEl.value); inputEl.value = ""; }
+  });
+  screenEl.addEventListener("click", function(e){
+    var t = e.target;
+    if (t && t.classList && t.classList.contains("cell")){
+      toggle(+t.getAttribute("data-row"), t.getAttribute("data-kind"));
+    }
+  });
+  render();
+})();
+</script>
 </body>
 </html>
