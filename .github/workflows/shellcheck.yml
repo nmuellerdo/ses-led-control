@@ -18,7 +18,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Lint shell scripts
-        run: shellcheck -x --shell=bash bin/ses-led-control install.sh tests/*.sh
+        run: shellcheck -x --shell=bash bin/ses-led-control tests/*.sh
 
       - name: Run offline parity self-test
         run: bash tests/dry-run-parity.sh

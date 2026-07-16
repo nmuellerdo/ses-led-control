@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-16
+
+### Changed
+- Recommended usage is now a single-file download: `curl` the script into any
+  folder and run `sudo bash ses-led-control`. No install, no clone. TrueNAS
+  SCALE mounts `/usr` read-only, so a system-wide install could not write there.
+
+### Removed
+- `install.sh` — there is no separate install step anymore.
+
 ## [0.1.0] - 2026-07-16
 
 ### Added
@@ -28,5 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Offline parity self-test (`tests/dry-run-parity.sh`) and a shellcheck CI
   workflow.
 
-[Unreleased]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nmuellerdo/ses-led-control/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nmuellerdo/ses-led-control/releases/tag/v0.1.0

@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 PROG="${0##*/}"
 
 # Field separator for the internal disk record. ASCII US (0x1f) never appears in

@@ -55,36 +55,29 @@ On Debian/Ubuntu/TrueNAS SCALE:
 sudo apt-get install -y sg3-utils util-linux lsscsi
 ```
 
-## Installation
+## Run
 
-Clone and install to `/usr/local`:
-
-```sh
-git clone https://github.com/nmuellerdo/ses-led-control.git
-cd ses-led-control
-sudo ./install.sh
-```
-
-Or install without root into a user prefix:
+It's a single self-contained script — no install, no clone. Download just the
+script into any folder and run it with `bash`. This is also the way to use it on
+**TrueNAS SCALE**, where `/usr` (and `/usr/local/bin`) is mounted read-only:
 
 ```sh
-PREFIX="$HOME/.local" ./install.sh
+curl -fsSLO https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control
+sudo bash ses-led-control          # interactive menu
 ```
 
-Or just grab the single script — it has no dependencies beyond the tools above:
-
-```sh
-curl -fsSLo /usr/local/bin/ses-led-control \
-  https://raw.githubusercontent.com/nmuellerdo/ses-led-control/main/bin/ses-led-control
-sudo chmod +x /usr/local/bin/ses-led-control
-```
+Re-run the same `curl` any time to update to the latest version.
 
 ## Usage
+
+> Examples below call `ses-led-control` for brevity. If you downloaded the
+> script, run it with `bash ses-led-control …` from that folder (prefix `sudo`
+> to switch LEDs).
 
 ### Interactive
 
 ```sh
-sudo ses-led-control
+sudo bash ses-led-control
 ```
 
 Then, at the prompt:
@@ -216,7 +209,7 @@ exactly what's needed to widen the parser.
 Run the linter and the offline self-test (no hardware needed):
 
 ```sh
-shellcheck -x --shell=bash bin/ses-led-control install.sh tests/*.sh
+shellcheck -x --shell=bash bin/ses-led-control tests/*.sh
 bash tests/dry-run-parity.sh
 ```
 
@@ -226,8 +219,10 @@ in CI on every push.
 
 ## Uninstall
 
+Nothing is installed system-wide — just delete the script:
+
 ```sh
-sudo rm -f /usr/local/bin/ses-led-control /usr/local/share/man/man1/ses-led-control.1
+rm -f ses-led-control
 ```
 
 ## Acknowledgements
