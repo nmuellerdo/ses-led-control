@@ -253,12 +253,8 @@ sudo bash ses-led-control
 bash ses-led-control list
 sudo bash ses-led-control ident on sg3:7
 bash ses-led-control --dry-run fault on /dev/sdf</pre>
-  <p>Line by line: install the dependencies (Debian / Ubuntu / TrueNAS SCALE),
-  download just the script, start the interactive menu, print the table (no root
-  needed), switch one IDENT LED, and preview a command with
-  <code>--dry-run</code> without touching hardware. The blocks contain no
-  <code>#</code> comments on purpose - the TrueNAS root shell (zsh) would pass
-  them along as arguments when pasted.</p>
+  <p>Install the dependencies, download the script, run it: interactive menu,
+  table only, switch one LED, or preview with <code>--dry-run</code>.</p>
 
   <h2>Targets</h2>
   <p>Every switching command takes a target, which can be a block device

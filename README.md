@@ -69,9 +69,6 @@ sudo bash ses-led-control
 This starts the interactive menu. Re-run the same `curl` any time to update to
 the latest version.
 
-> Command blocks in this README contain no `#` comments on purpose: the TrueNAS
-> SCALE root shell is zsh, which passes pasted `# ...` along as arguments.
-
 ## Usage
 
 > Examples below call `ses-led-control` for brevity. If you downloaded the
