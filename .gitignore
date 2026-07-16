@@ -1,0 +1,16 @@
+# Editor / OS cruft
+*~
+*.swp
+*.swo
+*.bak
+*.orig
+.DS_Store
+Thumbs.db
+
+# Local scratch / logs
+*.log
+*.tmp
+/tmp/
+
+# Local tooling
+.shellcheck/
